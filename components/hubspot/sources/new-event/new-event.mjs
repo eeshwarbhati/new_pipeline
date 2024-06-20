@@ -1,11 +1,12 @@
-import common from "../common.mjs";
+import common from "../common/common.mjs";
+import { ConfigurationError } from "@pipedream/platform";
 
 export default {
   ...common,
   key: "hubspot-new-event",
   name: "New Events",
-  description: "Emit new event for each new Hubspot event.",
-  version: "0.0.4",
+  description: "Emit new event for each new Hubspot event. Note: Only available for Marketing Hub Enterprise, Sales Hub Enterprise, Service Hub Enterprise, or CMS Hub Enterprise accounts",
+  version: "0.0.17",
   dedupe: "unique",
   type: "source",
   props: {
@@ -26,9 +27,24 @@ export default {
       ],
     },
   },
-  hooks: {},
+  hooks: {
+    async deploy() {
+      try {
+        await this.hubspot.getEvents({
+          objectType: this.objectType,
+          objectId: this.objectIds[0],
+        });
+      }
+      catch {
+        throw new ConfigurationError("Error occurred. Please verify that your Hubspot account is one of: Marketing Hub Enterprise, Sales Hub Enterprise, Service Hub Enterprise, or CMS Hub Enterprise");
+      }
+    },
+  },
   methods: {
     ...common.methods,
+    getTs() {
+      return Date.now();
+    },
     generateMeta(result) {
       const {
         id,
@@ -37,7 +53,7 @@ export default {
       return {
         id,
         summary: eventType,
-        ts: Date.now(),
+        ts: this.getTs(),
       };
     },
     getParams() {

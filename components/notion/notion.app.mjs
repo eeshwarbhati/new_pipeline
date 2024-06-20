@@ -22,7 +22,21 @@ export default {
       label: "Page ID",
       description: "The identifier for a Notion page",
       async options({ prevContext }) {
-        const response = await this.searchPage(undefined, {
+        const response = await this.search(undefined, {
+          start_cursor: prevContext.nextPageParameters ?? undefined,
+        });
+        const options = this._extractPageTitleOptions(response.results);
+        return this._buildPaginatedOptions(options, response.next_cursor);
+      },
+    },
+    pageIdInDatabase: {
+      type: "string",
+      label: "Page ID",
+      description: "The identifier for a Notion page",
+      async options({
+        prevContext, databaseId,
+      }) {
+        const response = await this.queryDatabase(databaseId, {
           start_cursor: prevContext.nextPageParameters ?? undefined,
         });
         const options = this._extractPageTitleOptions(response.results);
@@ -73,7 +87,6 @@ export default {
       label: "Property Types",
       description: "Select the page properties",
       optional: true,
-      reloadProps: true,
       async options({
         parentId, parentType,
       }) {

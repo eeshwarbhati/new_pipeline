@@ -1,10 +1,12 @@
 import common from "../common/base.mjs";
+import constants from "../common/constants.mjs";
+import sampleEmit from "./test-event.mjs";
 
 export default {
   ...common,
   key: "slack-new-message-in-channels",
   name: "New Message In Channels (Instant)",
-  version: "1.0.1",
+  version: "1.0.20",
   description: "Emit new event when a new message is posted to one or more channels",
   type: "source",
   dedupe: "unique",
@@ -42,6 +44,12 @@ export default {
         "ignoreBot",
       ],
     },
+    ignoreThreads: {
+      type: "boolean",
+      label: "Ignore replies in threads",
+      description: "Ignore replies to messages in threads",
+      optional: true,
+    },
   },
   methods: {
     ...common.methods,
@@ -53,7 +61,7 @@ export default {
         console.log(`Ignoring event with unexpected type "${event.type}"`);
         return;
       }
-      if (event.subtype != null && event.subtype != "bot_message" && event.subtype != "file_share") {
+      if (event.subtype && !constants.ALLOWED_MESSAGE_IN_CHANNEL_SUBTYPES.includes(event.subtype)) {
         // This source is designed to just emit an event for each new message received.
         // Due to inconsistencies with the shape of message_changed and message_deleted
         // events, we are ignoring them for now. If you want to handle these types of
@@ -62,6 +70,12 @@ export default {
         return;
       }
       if ((this.ignoreBot) && (event.subtype == "bot_message" || event.bot_id)) {
+        return;
+      }
+      // There is no thread message type only the thread_ts field
+      // indicates if the message is part of a thread in the event.
+      if (this.ignoreThreads && event.thread_ts) {
+        console.log("Ignoring reply in thread");
         return;
       }
       if (this.resolveNames) {
@@ -81,4 +95,5 @@ export default {
       return event;
     },
   },
+  sampleEmit,
 };

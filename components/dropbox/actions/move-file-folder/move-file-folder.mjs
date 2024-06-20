@@ -4,25 +4,32 @@ export default {
   name: "Move a File/Folder",
   description: "Moves a file or folder to a different location in the user's Dropbox [See the docs here](https://dropbox.github.io/dropbox-sdk-js/Dropbox.html#filesMoveV2__anchor)",
   key: "dropbox-move-file-folder",
-  version: "0.0.2",
+  version: "0.0.10",
   type: "action",
   props: {
     dropbox,
     pathFrom: {
       propDefinition: [
         dropbox,
-        "pathFileFolder",
+        "path",
+        () => ({
+          initialOptions: [],
+          filter: ({ metadata: { metadata: { [".tag"]: type } } }) => [
+            "file",
+            "folder",
+          ].includes(type),
+        }),
       ],
       label: "Path from",
-      description: "The file/folder that you want to move.",
+      description: "Type the file or folder name to search for it in the user's Dropbox.",
     },
     pathTo: {
       propDefinition: [
         dropbox,
-        "pathFolder",
+        "path",
       ],
       label: "Path to",
-      description: "The new path of your file/folder",
+      description: "Type the folder name to search for it in the user's Dropbox. If not filled, it will be moved in the root folder.",
     },
     autorename: {
       type: "boolean",
@@ -45,18 +52,16 @@ export default {
       pathTo,
     } = this;
 
-    let normalizedPathTo = pathTo?.value || pathTo;
-    const normalizedPathFrom = pathFrom?.value || pathFrom;
+    let normalizedPathTo = this.dropbox.getPath(pathTo);
+    const normalizedPathFrom = this.dropbox.getPath(pathFrom);
 
-    // If path is a file, we need to move it as a file
-    if (pathFrom?.type == "file" && pathFrom.value) {
-      const splited = normalizedPathFrom.split("/");
-      const fileName = splited[splited.length - 1];
-      normalizedPathTo = `${pathTo?.value || pathTo}/${fileName}`;
-    }
+    // Add file/folder name to end of pathTo
+    const splited = normalizedPathFrom.split("/");
+    const fileName = splited[splited.length - 1];
+    normalizedPathTo += `/${fileName}`;
 
     const res = await this.dropbox.filesMove({
-      from_path: pathFrom.value,
+      from_path: normalizedPathFrom,
       to_path: normalizedPathTo,
       autorename,
       allow_ownership_transfer: allowOwnershipTransfer,

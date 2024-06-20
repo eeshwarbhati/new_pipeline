@@ -1,30 +1,16 @@
 import { LinearClient } from "@linear/sdk";
 import constants from "./common/constants.mjs";
+import utils from "./common/utils.mjs";
+import { axios } from "@pipedream/platform";
+import queries from "./common/queries.mjs";
 
 export default {
   type: "app",
   app: "linear_app",
   propDefinitions: {
-    issueId: {
-      type: "string",
-      label: "Issue ID",
-      description: "The issue ID to update",
-      async options({ prevContext }) {
-        return this.listResourcesOptions({
-          prevContext,
-          resourcesFn: this.listIssues,
-          resouceMapper: ({
-            id, title,
-          }) => ({
-            label: title,
-            value: id,
-          }),
-        });
-      },
-    },
     teamId: {
       type: "string",
-      label: "Team ID",
+      label: "Team",
       description: "The identifier or key of the team associated with the issue",
       async options({ prevContext }) {
         return this.listResourcesOptions({
@@ -39,12 +25,42 @@ export default {
         });
       },
     },
+    issueId: {
+      type: "string",
+      label: "Issue",
+      description: "The issue to update",
+      async options({
+        teamId, prevContext,
+      }) {
+        return this.listResourcesOptions({
+          prevContext,
+          resourcesFn: this.listIssues,
+          resourcesArgs: teamId && {
+            filter: {
+              team: {
+                id: {
+                  eq: teamId,
+                },
+              },
+            },
+          },
+          resouceMapper: ({
+            id, title,
+          }) => ({
+            label: title,
+            value: id,
+          }),
+        });
+      },
+    },
     projectId: {
       type: "string",
-      label: "Project ID",
+      label: "Project",
       description: "The identifier or key of the project associated with the issue",
       optional: true,
-      async options({ prevContext }) {
+      async options({
+        teamId, prevContext,
+      }) {
         return this.listResourcesOptions({
           prevContext,
           resourcesFn: this.listProjects,
@@ -54,6 +70,17 @@ export default {
             label: name,
             value: id,
           }),
+          resourcesArgs: teamId && {
+            filter: {
+              issues: {
+                team: {
+                  id: {
+                    eq: teamId,
+                  },
+                },
+              },
+            },
+          },
         });
       },
     },
@@ -64,8 +91,8 @@ export default {
     },
     assigneeId: {
       type: "string",
-      label: "Assignee ID",
-      description: "The identifier of the user to assign the issue to",
+      label: "Assignee",
+      description: "The user to assign to the issue",
       optional: true,
       async options({ prevContext }) {
         return this.listResourcesOptions({
@@ -76,6 +103,35 @@ export default {
           }) => ({
             label: name,
             value: id,
+          }),
+        });
+      },
+    },
+    stateId: {
+      type: "string",
+      label: "State (Status)",
+      description: "The state (status) to assign to the issue",
+      optional: true,
+      async options({
+        teamId, prevContext,
+      }) {
+        return this.listResourcesOptions({
+          prevContext,
+          resourcesFn: this.listStates,
+          resourcesArgs: teamId && {
+            filter: {
+              team: {
+                id: {
+                  eq: teamId,
+                },
+              },
+            },
+          },
+          resouceMapper: ({
+            id: value, name: label,
+          }) => ({
+            label,
+            value,
           }),
         });
       },
@@ -125,6 +181,26 @@ export default {
     },
   },
   methods: {
+    getAxiosHeaders() {
+      return {
+        Authorization: `${this.$auth.api_key}`,
+      };
+    },
+    makeAxiosRequest({
+      $ = this, ...args
+    }) {
+      return axios($, {
+        url: "https://api.linear.app/graphql",
+        headers: this.getAxiosHeaders(),
+        ...args,
+      });
+    },
+    post(args = {}) {
+      return this.makeAxiosRequest({
+        method: "POST",
+        ...args,
+      });
+    },
     getClientOptions(options = {}) {
       return {
         apiKey: this.$auth.api_key,
@@ -135,38 +211,66 @@ export default {
       return new LinearClient(this.getClientOptions(options));
     },
     async createWebhook(input) {
-      return this.client().webhookCreate(input);
+      return this.client().createWebhook(input);
     },
     async deleteWebhook(id) {
-      return this.client().webhookDelete(id);
+      return this.client().deleteWebhook(id);
     },
     async createIssue(input) {
-      return this.client().issueCreate(input);
+      return this.client().createIssue(input);
     },
     async updateIssue({
       issueId, input,
     }) {
-      return this.client().issueUpdate(issueId, input);
+      return this.client().updateIssue(issueId, input);
     },
-    async searchIssues({
-      query, variables,
-    }) {
-      return this.client().issueSearch(query, variables);
+    async listIssues(variables) {
+      const { data: { issues } } = await this.post({
+        data: {
+          query: queries.listIssues,
+          variables,
+        },
+      });
+      return issues;
     },
-    async getIssue(id) {
-      return this.client().issue(id);
+    async getIssue(variables) {
+      const { data: { issue } } = await this.post({
+        data: {
+          query: queries.getIssue,
+          variables,
+        },
+      });
+      return issue;
+    },
+    async getUser(id) {
+      return this.client().user(id);
+    },
+    async getProject(id) {
+      return this.client().project(id);
+    },
+    async getState(id) {
+      return this.client().workflowState(id);
+    },
+    async getTeam(id) {
+      return this.client().team(id);
     },
     async listTeams(variables = {}) {
       return this.client().teams(variables);
     },
-    async listProjects(variables = {}) {
-      return this.client().projects(variables);
+    async listProjects(variables) {
+      const { data: { projects } } = await this.post({
+        data: {
+          query: queries.listProjects,
+          variables,
+        },
+      });
+      return projects;
     },
     async listUsers(variables = {}) {
       return this.client().users(variables);
     },
-    async listIssues(variables = {}) {
-      return this.client().issues(variables);
+    async listStates(variables = {}) {
+      return this.client().workflowStates(variables);
     },
     async listIssueLabels(variables = {}) {
       return this.client().issueLabels(variables);
@@ -174,9 +278,18 @@ export default {
     async listComments(variables = {}) {
       return this.client().comments(variables);
     },
+    async getComment(variables) {
+      const { data: { comment } } = await this.post({
+        data: {
+          query: queries.getComment,
+          variables,
+        },
+      });
+      return comment;
+    },
     async listResourcesOptions({
-      prevContext, resourcesFn, resouceMapper,
-    }) {
+      prevContext, resourcesFn, resourcesArgs, resouceMapper,
+    } = {}) {
       const {
         after,
         hasNextPage,
@@ -193,52 +306,46 @@ export default {
         await resourcesFn({
           after,
           first: constants.DEFAULT_LIMIT,
+          ...resourcesArgs,
         });
 
       return {
         options: nodes.map(resouceMapper),
         context: {
-          after: pageInfo.endCursor,
-          hasNextPage: pageInfo.hasNextPage,
+          after: pageInfo?.endCursor,
+          hasNextPage: pageInfo?.hasNextPage,
         },
       };
     },
-    async *paginateResources({ resourcesFn }) {
-      const params = {
-        after: null,
-        first: constants.DEFAULT_LIMIT,
-      };
-      let hasNextPage = true;
+    async *paginateResources({
+      resourcesFn,
+      resourcesFnArgs,
+      max = constants.DEFAULT_MAX_RECORDS,
+      useGraphQl = true,
+    }) {
+      let counter = 0;
+      let hasNextPage;
+      let endCursor;
       do {
+        const variables = useGraphQl
+          ? utils.buildVariables(endCursor, resourcesFnArgs)
+          : {
+            after: endCursor,
+            first: constants.DEFAULT_LIMIT,
+            ...resourcesFnArgs,
+          };
         const {
           nodes,
           pageInfo,
-        } = await resourcesFn(params);
-        for (const d of nodes) {
-          yield d;
+        } = await resourcesFn(variables);
+        for (const node of nodes) {
+          counter += 1;
+          yield node;
         }
-        hasNextPage = pageInfo.hasNextPage;
-        if (hasNextPage) {
-          params.after = pageInfo.endCursor;
-        }
-      } while (hasNextPage);
-    },
-    isActionSet(body, actions) {
-      if (!actions.includes(body?.action)) {
-        return false;
-      }
-      return true;
-    },
-    async isProjectIdSet(body, projectId) {
-      if (projectId) {
-        if (!body.data?.projectId) {
-          const issue = body.data?.issue?.id && await this.getIssue(body.data?.issue?.id);
-          return issue?._project?.id === projectId;
-        } else {
-          return body.data.projectId === projectId;
-        }
-      }
-      return true;
+        ({
+          hasNextPage, endCursor,
+        } = pageInfo);
+      } while (hasNextPage && counter < max);
     },
   },
 };

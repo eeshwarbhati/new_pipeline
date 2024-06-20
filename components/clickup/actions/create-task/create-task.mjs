@@ -1,45 +1,15 @@
 import clickup from "../../clickup.app.mjs";
-import common from "../common/common.mjs";
+import common from "../common/list-props.mjs";
 import constants from "../common/constants.mjs";
 
 export default {
   key: "clickup-create-task",
   name: "Create Task",
-  description: "Creates a new task. See the docs [here](https://clickup.com/api) in **Tasks  / Create Task** section.",
-  version: "0.0.5",
+  description: "Creates a new task. See the docs [here](https://clickup.com/api) in **Tasks / Create Task** section.",
+  version: "0.0.12",
   type: "action",
   props: {
     ...common.props,
-    spaceId: {
-      propDefinition: [
-        clickup,
-        "spaces",
-        (c) => ({
-          workspaceId: c.workspaceId,
-        }),
-      ],
-      optional: true,
-    },
-    folderId: {
-      propDefinition: [
-        clickup,
-        "folders",
-        (c) => ({
-          spaceId: c.spaceId,
-        }),
-      ],
-      optional: true,
-    },
-    listId: {
-      propDefinition: [
-        clickup,
-        "lists",
-        (c) => ({
-          spaceId: c.spaceId,
-          folderId: c.folderId,
-        }),
-      ],
-    },
     name: {
       label: "Name",
       type: "string",
@@ -49,6 +19,12 @@ export default {
       label: "Description",
       type: "string",
       description: "The description of task",
+      optional: true,
+    },
+    markdownDescription: {
+      label: "Markdown Description",
+      type: "string",
+      description: "The description of task with markdown formatting",
       optional: true,
     },
     priority: {
@@ -99,18 +75,34 @@ export default {
       ],
       optional: true,
     },
+    dueDate: {
+      type: "string",
+      label: "Due Date",
+      description: "Due date of the task in [ISO 8601 format](https://en.wikipedia.org/wiki/ISO_8601). e.g. `2023-05-13T23:45:44Z`",
+      optional: true,
+    },
+    dueDateTime: {
+      type: "boolean",
+      label: "Due Date Time",
+      description: "If set `true`, due date will be given with time. If not it will only be the closest date",
+      optional: true,
+    },
   },
   async run({ $ }) {
     const {
       listId,
       name,
       description,
+      markdownDescription,
       priority,
       assignees,
       tags,
       status,
       parent,
+      dueDate,
+      dueDateTime: due_date_time,
     } = this;
+    const due_date = (new Date(dueDate)).getTime();
 
     const response = await this.clickup.createTask({
       $,
@@ -118,11 +110,14 @@ export default {
       data: {
         name,
         description,
+        markdown_description: markdownDescription,
         priority: constants.PRIORITIES[priority] || constants.PRIORITIES["Normal"],
         assignees,
         tags,
         status,
         parent,
+        due_date,
+        due_date_time,
       },
     });
 

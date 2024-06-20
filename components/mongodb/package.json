@@ -1,6 +1,6 @@
 {
   "name": "@pipedream/mongodb",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "Pipedream MongoDB Components",
   "main": "mongodb.app.mjs",
   "keywords": [
@@ -10,11 +10,11 @@
   ],
   "homepage": "https://pipedream.com/apps/mongodb",
   "author": "Pipedream <support@pipedream.com> (https://pipedream.com/)",
-  "license": "MIT",
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
+    "@pipedream/platform": "^1.6.5",
     "mongodb": "^4.6.0"
   }
 }

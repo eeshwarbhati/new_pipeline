@@ -1,4 +1,7 @@
-import Webflow from "webflow-api";
+// Webflow version support here: https://www.npmjs.com/package/webflow-api?activeTab=versions
+// @note: this is pinned to Webflow 1.3.1
+// because the upgrade to version 2 requires a new app
+import Webflow from "webflow-api@1.3.1";
 import constants from "./common/constants.mjs";
 
 export default {
@@ -12,10 +15,7 @@ export default {
       async options({ siteId }) {
         const domains = await this.getDomains(siteId);
 
-        return domains.map((domain) => ({
-          label: domain.name,
-          value: domain._id,
-        }));
+        return domains.map((domain) => domain.name);
       },
     },
     sites: {
@@ -248,7 +248,7 @@ export default {
         offset: page,
       });
 
-      return response.items;
+      return response;
     },
   },
 };

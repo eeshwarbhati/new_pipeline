@@ -1,111 +1,204 @@
 import utils from "../../common/utils.mjs";
-import jira from "../../jira.app.mjs";
+import common from "../common/issue.mjs";
+import constants from "../../common/constants.mjs";
+import { ConfigurationError } from "@pipedream/platform";
 
 export default {
+  ...common,
   key: "jira-update-issue",
   name: "Update Issue",
   description: "Updates an issue. A transition may be applied and issue properties updated as part of the edit, [See the docs](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-put)",
-  version: "0.2.1",
+  version: "0.2.10",
   type: "action",
   props: {
-    jira,
+    ...common.props,
     issueIdOrKey: {
+      reloadProps: true,
       propDefinition: [
-        jira,
+        common.props.app,
         "issueIdOrKey",
+        ({ cloudId }) => ({
+          cloudId,
+        }),
       ],
+    },
+    projectId: {
+      propDefinition: [
+        common.props.app,
+        "projectID",
+        ({ cloudId }) => ({
+          cloudId,
+        }),
+      ],
+      optional: true,
+    },
+    issueTypeId: {
+      reloadProps: true,
+      propDefinition: [
+        common.props.app,
+        "issueType",
+        ({
+          cloudId, projectId,
+        }) => ({
+          cloudId,
+          projectId,
+        }),
+      ],
+      optional: true,
     },
     notifyUsers: {
       type: "boolean",
-      label: "Notify users",
+      label: "Notify Users",
       description: "Whether a notification email about the issue update is sent to all watchers. To disable the notification, administer Jira or administer project permissions are required. If the user doesn't have the necessary permission the request is ignored.",
       optional: true,
     },
     overrideScreenSecurity: {
       type: "boolean",
-      label: "Override screen security",
+      label: "Override Screen Security",
       description: "Whether screen security should be overridden to enable hidden fields to be edited. Available to Connect app users with admin permissions.",
       optional: true,
     },
     overrideEditableFlag: {
       type: "boolean",
-      label: "Override editable flag",
+      label: "Override Editable Flag",
       description: "Whether screen security should be overridden to enable uneditable fields to be edited. Available to Connect app users with admin permissions.",
       optional: true,
     },
-    transition: {
+    transitionId: {
+      label: "Transition ID",
+      description: "The ID of the issue transition. Retrieving options requires a static `issueIdOrKey`. Required when specifying a transition to undertake.",
       propDefinition: [
-        jira,
+        common.props.app,
         "transition",
-        (c) => ({
-          issueIdOrKey: c.issueIdOrKey,
+        ({
+          cloudId, issueIdOrKey,
+        }) => ({
+          cloudId,
+          issueIdOrKey,
         }),
       ],
     },
-    fields: {
-      propDefinition: [
-        jira,
-        "fields",
-      ],
-    },
-    update: {
-      type: "object",
-      label: "Update",
-      description: "A Map containing the field name and a list of operations to perform on the issue screen field. Note that fields included in here cannot be included in `fields`. (.i.e for Update {\"summary\":[{\"set\":\"Updated issue from Pipedream\"}],\"labels\":[{\"add\":\"triaged\"}]}') [see doc](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-put)",
+    transitionLooped: {
+      type: "boolean",
+      label: "Transition Looped",
+      description: "Whether the transition is looped.",
       optional: true,
-    },
-    historyMetadata: {
-      type: "object",
-      label: "History metadata",
-      description: "Additional issue history details, See `HistoryMetadata` section of [doc](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-put)",
-      optional: true,
-    },
-    properties: {
-      propDefinition: [
-        jira,
-        "properties",
-      ],
-      description: "Details of issue properties to be add or update, please provide an array of objects with keys and values.",
-    },
-    additionalProperties: {
-      propDefinition: [
-        jira,
-        "additionalProperties",
-      ],
     },
   },
-  async run({ $ }) {
-    const update = utils.parseObject(this.update);
-    const fields = utils.parseObject(this.fields);
-    const transition = {
-      id: this.transition,
-    };
-    const historyMetadata = utils.parseObject(this.historyMetadata);
-    const additionalProperties = utils.parseObject(this.additionalProperties);
-    let properties;
+  async additionalProps() {
+    const {
+      cloudId,
+      projectId,
+      issueTypeId,
+      issueIdOrKey,
+    } = this;
+
     try {
-      properties = JSON.parse(this.properties);
-    } catch ( err ) {
-      //pass
+      const { fields } = await this.app.getEditIssueMetadata({
+        cloudId,
+        issueIdOrKey,
+      });
+
+      return this.getDynamicFields({
+        fields,
+      });
+    } catch {
+      if (!issueTypeId) {
+        throw new ConfigurationError("Please enter `projectId` and `IssueTypeId` to retrieve additional props.");
+      }
+      const {
+        projects: [
+          {
+            issuetypes: [
+              { fields = {} } = {},
+            ],
+          },
+        ],
+      } = await this.app.getCreateIssueMetadata({
+        cloudId,
+        params: {
+          projectIds: projectId,
+          issuetypeIds: issueTypeId,
+          expand: "projects.issuetypes.fields",
+        },
+      });
+
+      const keys = [
+        constants.FIELD_KEY.ISSUETYPE,
+        constants.FIELD_KEY.PROJECT,
+      ];
+
+      return this.getDynamicFields({
+        fields,
+        predicate: ({ key }) => !keys.includes(key),
+      });
     }
-    const response = await this.jira.updateIssue({
-      $,
-      issueIdOrKey: this.issueIdOrKey,
-      params: {
-        notifyUsers: this.notifyUsers,
-        overrideScreenSecurity: this.overrideScreenSecurity,
-        overrideEditableFlag: this.overrideEditableFlag,
+  },
+  async run({ $ }) {
+    const {
+      app,
+      cloudId,
+      issueIdOrKey,
+      // eslint-disable-next-line no-unused-vars
+      projectId,
+      // eslint-disable-next-line no-unused-vars
+      issueTypeId,
+      notifyUsers,
+      overrideScreenSecurity,
+      overrideEditableFlag,
+      historyMetadata,
+      properties,
+      transitionId,
+      transitionLooped,
+      update,
+      additionalProperties,
+      ...dynamicFields
+    } = this;
+
+    const fields = utils.reduceProperties({
+      additionalProps: this.formatFields(dynamicFields),
+    });
+
+    const { transition } = utils.reduceProperties({
+      additionalProps: {
+        transition: [
+          transitionId,
+          {
+            id: transitionId,
+            looped: transitionLooped,
+          },
+        ],
       },
+    });
+
+    const params = utils.reduceProperties({
+      additionalProps: {
+        notifyUsers,
+        overrideScreenSecurity,
+        overrideEditableFlag,
+      },
+    });
+
+    await app.updateIssue({
+      $,
+      cloudId,
+      issueIdOrKey,
+      params,
       data: {
         fields,
-        update,
-        historyMetadata,
-        properties,
-        ...additionalProperties,
+        historyMetadata: utils.parseObject(historyMetadata),
+        properties: utils.parse(properties),
+        update: utils.parseObject(update),
+        ...utils.parseObject(additionalProperties),
       },
       transition,
     });
+
     $.export("$summary", `Issue with ID(or key): ${this.issueIdOrKey} has been updated.`);
-    return response;
+
+    return {
+      success: true,
+      issueIdOrKey,
+    };
   },
 };

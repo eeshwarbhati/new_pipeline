@@ -1,12 +1,13 @@
 import raindrop from "../../raindrop.app.mjs";
 import constants from "../../common/constants.mjs";
+import { DEFAULT_POLLING_SOURCE_TIMER_INTERVAL } from "@pipedream/platform";
 
 export default {
   key: "raindrop-new-bookmark",
   name: "New Bookmark",
   description: "Emit new event when a bookmark is added",
   type: "source",
-  version: "0.0.1",
+  version: "0.0.6",
   dedupe: "unique",
   props: {
     raindrop,
@@ -14,7 +15,7 @@ export default {
     timer: {
       type: "$.interface.timer",
       default: {
-        intervalSeconds: 60 * 15,
+        intervalSeconds: DEFAULT_POLLING_SOURCE_TIMER_INTERVAL,
       },
     },
     collectionId: {
@@ -47,11 +48,14 @@ export default {
   },
   async run() {
     let page = this._getPage();
+    const createdDate = `created:>${new Date().toISOString()
+      .slice(0, 7)}`;
 
     while (true) {
       const { items: bookmarks } = await this.raindrop.getRaindrops(this, this.collectionId, {
         page,
         perpage: constants.DEFAULT_PER_PAGE,
+        search: createdDate,
       });
       this.emitEvents(bookmarks);
 

@@ -84,10 +84,47 @@ export interface Methods {
 
 export interface FlowFunctions {
   exit: (reason: string) => void;
-  delay: (ms: number) => {
+  delay: (ms: number, context: object) => {
     resume_url: string;
     cancel_url: string;
   };
+  rerun: (ms: number, context: object) => {
+    resume_url: string;
+    cancel_url: string;
+  };
+  suspend: (ms: number, context: object) => {
+    resume_url: string;
+    cancel_url: string;
+  };
+  refreshTimeout: () => string;
+}
+
+export interface IApi {
+  open(path: string): IFile;
+  openDescriptor(descriptor: any): IFile;
+  dir(path?: string): AsyncGenerator<{
+    isDirectory: () => boolean;
+    isFile: () => boolean;
+    path: string;
+    name: string;
+    size?: number;
+    modifiedAt?: Date;
+    file?: IFile;
+  }>;
+}
+
+export interface IFile {
+  delete(): Promise<void>;
+  createReadStream(): Promise<NodeJS.ReadableStream>;
+  createWriteStream(contentType?: string, contentLength?: number): Promise<NodeJS.WritableStream>;
+  toEncodedString(encoding?: string, start?: number, end?: number): Promise<string>;
+  toUrl(): Promise<string>;
+  toFile(localFilePath: string): Promise<void>;
+  toBuffer(): Promise<Buffer>;
+  fromReadableStream(readableStream: NodeJS.ReadableStream, contentType?: string, contentSize?: number): Promise<IFile>;
+  fromFile(localFilePath: string, contentType?: string): Promise<IFile>;
+  fromUrl(url: string, options?: any): Promise<IFile>;
+  toJSON(): any;
 }
 
 export interface Pipedream {
@@ -100,6 +137,7 @@ export interface Pipedream {
    */
   respond: (response: HTTPResponse) => Promise<any> | void;
   flow: FlowFunctions;
+  files: IApi;
 }
 
 // https://pipedream.com/docs/components/api/#async-options-example
@@ -249,13 +287,13 @@ export type SourceHttpRunOptions = {
   body?: {
     [key: string]: JSONValue;
   };
-}
+};
 
 // https://pipedream.com/docs/components/api/#timer
 export type SourceTimerRunOptions = {
   timestamp: number;
   interval_seconds: number;
-}
+};
 
 export type SourceRunOptions = SourceHttpRunOptions | SourceTimerRunOptions;
 
@@ -269,18 +307,28 @@ export interface EmitMetadata {
   id?: string | number;
   name?: string;
   summary?: string;
-  ts: number;
+  ts?: number;
+}
+
+export interface IdEmitMetadata extends EmitMetadata {
+  id: string | number;
 }
 
 type EmitFunction = {
-  $emit: (event: JSONValue, metadata: EmitMetadata) => Promise<void>;
+  $emit: (event: JSONValue, metadata?: EmitMetadata) => Promise<void>;
+};
+
+type IdEmitFunction = {
+  $emit: (event: JSONValue, metadata: IdEmitMetadata) => Promise<void>;
 };
 
 type PropThis<Props> = {
   [Prop in keyof Props]: Props[Prop] extends App<Methods, AppPropDefinitions> ? any : any
 };
 
-export interface Source<
+type Modify<T, R> = Omit<T, keyof R> & R;
+
+interface BaseSource<
   Methods,
   SourcePropDefinitions
 > {
@@ -298,6 +346,38 @@ export interface Source<
   ) => Promise<SourcePropDefinitions>;
   run: (this: PropThis<SourcePropDefinitions> & Methods & EmitFunction, options?: SourceRunOptions) => void | Promise<void>;
 }
+
+export interface LastSource<
+  Methods,
+  SourcePropDefinitions
+> extends BaseSource<
+  Methods,
+  SourcePropDefinitions
+> {
+  dedupe?: "last";
+}
+
+export type DedupedSource<
+  Methods,
+  SourcePropDefinitions
+> = Modify<BaseSource<
+  Methods,
+  SourcePropDefinitions
+>, {
+  dedupe: "greatest" | "unique";
+  run: (this: PropThis<SourcePropDefinitions> & Methods & IdEmitFunction, options?: SourceRunOptions) => void | Promise<void>;
+}>;
+
+export type Source<
+  Methods,
+  SourcePropDefinitions
+> = LastSource<
+  Methods,
+  SourcePropDefinitions
+> | DedupedSource<
+  Methods,
+  SourcePropDefinitions
+>;
 
 export function defineSource<
   Methods,

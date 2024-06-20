@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import base from "./http-based/base.mjs";
 
 /**
@@ -18,11 +19,15 @@ export default {
     },
   },
   methods: {
-    getMeta(spreadsheet, worksheet, rowNumber) {
-      const { sheetId: worksheetId } = worksheet;
-      const { spreadsheetId: sheetId } = spreadsheet;
+    _getRowHashes() {
+      return this.db.get("rowHashes") || {};
+    },
+    _setRowHashes(rowHashes) {
+      this.db.set("rowHashes", rowHashes);
+    },
+    getMeta(worksheet, rowNumber) {
       const ts = Date.now();
-      const id = `${sheetId}${worksheetId}${rowNumber}${ts}`;
+      const id = `${worksheet.properties.sheetId}${rowNumber}${ts}`;
       const summary = `New row #${rowNumber} in ${worksheet.properties.title}`;
       return {
         id,
@@ -124,6 +129,11 @@ export default {
 
         const oldRowCount = this._getRowCount(`${sheetId}${worksheetId}`);
         const worksheetLength = worksheetLengthsById[worksheetId];
+        if (oldRowCount === worksheetLength) {
+          // No new rows. Skip getting spreadsheet values, which would include the last row when the
+          // (A1 notation) range's upper bound is the worksheet length.
+          continue;
+        }
         const lowerBound = oldRowCount + 1;
         const upperBound = worksheetLength;
         const range = `${worksheetTitle}!${lowerBound}:${upperBound}`;
@@ -139,15 +149,25 @@ export default {
           `${sheetId}${worksheetId}`,
           // https://github.com/PipedreamHQ/pipedream/issues/2818
           newRowCount >= upperBound
-            ? upperBound - 1
+            ? upperBound
             : newRowCount,
         );
 
+        const rowHashes = this._getRowHashes();
         for (const [
           index,
           newRow,
         ] of newRowValues.values.entries()) {
           const rowNumber = lowerBound + index;
+          const rowHash = crypto
+            .createHash("md5")
+            .update(JSON.stringify(newRow))
+            .digest("base64");
+          const rowHashString = `${worksheet.properties.sheetId}${rowNumber}${rowHash}`;
+          if (rowHashes[rowHashString]) {
+            continue;
+          }
+          rowHashes[rowHashString] = true;
           this.$emit(
             {
               newRow,
@@ -155,9 +175,10 @@ export default {
               worksheet,
               rowNumber,
             },
-            this.getMeta(spreadsheet, worksheet, rowNumber),
+            this.getMeta(worksheet, rowNumber),
           );
         }
+        this._setRowHashes(rowHashes);
       }
     },
   },

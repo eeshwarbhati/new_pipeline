@@ -1,13 +1,13 @@
-import common from "../common.js";
-import pickBy from "lodash/pickBy.js";
-import pick from "lodash/pick.js";
+import common from "../common.mjs";
+import pickBy from "lodash-es/pickBy.js";
+import pick from "lodash-es/pick.js";
 
 export default {
   ...common,
   key: "trello-update-card",
   name: "Update Card",
-  description: "Updates a card. [See the docs here](https://developer.atlassian.com/cloud/trello/rest/api-group-cards/#api-cards-id-put)",
-  version: "0.1.2",
+  description: "Updates a card. [See the documentation](https://developer.atlassian.com/cloud/trello/rest/api-group-cards/#api-cards-id-put)",
+  version: "0.1.5",
   type: "action",
   props: {
     ...common.props,
@@ -139,6 +139,61 @@ export default {
         "coordinates",
       ],
     },
+    customFieldIds: {
+      propDefinition: [
+        common.props.trello,
+        "customFieldIds",
+        (c) => ({
+          boardId: c.idBoard,
+        }),
+      ],
+      reloadProps: true,
+    },
+  },
+  async additionalProps() {
+    const props = {};
+    if (!this.customFieldIds?.length) {
+      return props;
+    }
+    for (const customFieldId of this.customFieldIds) {
+      const customField = await this.trello.getCustomField(customFieldId);
+      props[customFieldId] = {
+        type: "string",
+        label: `Value for Custom Field - ${customField.name}`,
+      };
+      if (customField.type === "list") {
+        props[customFieldId].options = customField.options?.map((option) => ({
+          value: option.id,
+          label: option.value.text,
+        })) || [];
+      }
+    }
+    return props;
+  },
+  methods: {
+    ...common.methods,
+    async getCustomFieldItems($) {
+      const customFieldItems = [];
+      for (const customFieldId of this.customFieldIds) {
+        const customField = await this.trello.getCustomField(customFieldId, $);
+        const customFieldItem = {
+          idCustomField: customFieldId,
+        };
+        if (customField.type === "list") {
+          customFieldItem.idValue = this[customFieldId];
+        } else if (customField.type === "checkbox") {
+          customFieldItem.value = {
+            checked: this[customFieldId],
+          };
+        } else {
+          customFieldItem.value = {
+            [customField.type]: this[customFieldId],
+          };
+        }
+        customFieldItems.push(customFieldItem);
+      }
+      return customFieldItems;
+    },
   },
   async run({ $ }) {
     const opts = pickBy(pick(this, [
@@ -159,6 +214,15 @@ export default {
       "coordinates",
     ]));
     const res = await this.trello.updateCard(this.idCard, opts, $);
+
+    if (this.customFieldIds) {
+      const customFieldItems = await this.getCustomFieldItems($);
+      const updatedCustomFields = await this.trello.updateCustomFields(this.idCard, {
+        customFieldItems,
+      }, $);
+      res.updatedCustomFields = updatedCustomFields;
+    }
+
     $.export("$summary", `Successfully updated card ${res.name}`);
     return res;
   },

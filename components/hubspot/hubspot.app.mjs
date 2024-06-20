@@ -89,6 +89,30 @@ export default {
       description: "Watch for new events concerning the object type specified.",
       options: OBJECT_TYPES,
     },
+    objectSchema: {
+      type: "string",
+      label: "Object Schema",
+      description: "Watch for new events of objects with the specified custom schema.",
+      async options() {
+        const response = await this.listSchemas();
+        return response?.results?.map(({
+          objectTypeId, name,
+        }) => ({
+          label: name,
+          value: objectTypeId,
+        }));
+      },
+    },
+    objectId: {
+      type: "string",
+      label: "Object ID",
+      description: "Hubspot's internal ID for the contact",
+      async options({
+        objectType, ...opts
+      }) {
+        return this.createOptions(objectType, opts);
+      },
+    },
     objectIds: {
       type: "string[]",
       label: "Object",
@@ -183,6 +207,16 @@ export default {
             nextAfter: paging?.next?.after,
           },
         };
+      },
+    },
+    contactProperties: {
+      type: "string[]",
+      label: "Contact Properties",
+      description: "Select the properties to include in the contact object",
+      optional: true,
+      default: [],
+      async options() {
+        return this.createPropertiesArray();
       },
     },
     workflow: {
@@ -317,16 +351,6 @@ export default {
     },
     async getBlogPosts(params, $) {
       return this.makeRequest(API_PATH.CMS, "/blogs/posts", {
-        params,
-        $,
-      });
-    },
-    async getCalendarTasks(endDate, $) {
-      const params = {
-        startDate: Date.now(),
-        endDate,
-      };
-      return this.makeRequest(API_PATH.CALENDAR, "/events/task", {
         params,
         $,
       });
@@ -534,6 +558,19 @@ export default {
         },
       );
     },
+    async updateObject(objectType, properties, objectId, $) {
+      return this.makeRequest(
+        API_PATH.CRMV3,
+        `/objects/${objectType}/${objectId}`,
+        {
+          method: "PATCH",
+          data: {
+            properties,
+          },
+          $,
+        },
+      );
+    },
     async getPropertyGroups(objectType, $) {
       return this.makeRequest(API_PATH.CRMV3, `/properties/${objectType}/groups`, {
         $,
@@ -541,6 +578,11 @@ export default {
     },
     async getProperties(objectType, $) {
       return this.makeRequest(API_PATH.CRMV3, `/properties/${objectType}`, {
+        $,
+      });
+    },
+    async listSchemas($) {
+      return this.makeRequest(API_PATH.CRMV3, "/schemas", {
         $,
       });
     },
@@ -696,6 +738,48 @@ export default {
         {
           $,
           method: "POST",
+        },
+      );
+    },
+    async batchCreateContacts({
+      $,
+      data,
+    }) {
+      return this.makeRequest(
+        API_PATH.CRMV3,
+        "/objects/contacts/batch/create",
+        {
+          method: "POST",
+          data,
+          $,
+        },
+      );
+    },
+    async batchUpdateContacts({
+      $,
+      data,
+    }) {
+      return this.makeRequest(
+        API_PATH.CRMV3,
+        "/objects/contacts/batch/update",
+        {
+          method: "POST",
+          data,
+          $,
+        },
+      );
+    },
+    async getDeal({
+      $,
+      dealId,
+      params,
+    }) {
+      return this.makeRequest(
+        API_PATH.DEAL,
+        `/deal/${dealId}`,
+        {
+          params,
+          $,
         },
       );
     },

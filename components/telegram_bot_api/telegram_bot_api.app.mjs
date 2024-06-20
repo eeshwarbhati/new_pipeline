@@ -62,10 +62,13 @@ export default {
       `),
       optional: true,
     },
-    disable_web_page_preview: {
-      type: "boolean",
-      label: "Disable Link Previews",
-      description: "Choose if to disable link previews for links in this message.",
+    link_preview_options: {
+      type: "string",
+      label: "Link Preview Options",
+      description: toSingleLineString(`
+        Link preview generation options for the message. Enter additional interface options that are a JSON-serialized object, 
+        e.g. \`{"is_disabled":false,"url":"https://botpress.org","prefer_small_media":true,"prefer_large_media":false,"show_above_text":false}\`
+      `),
       optional: true,
     },
     reply_to_message_id: {
@@ -251,6 +254,21 @@ export default {
       `),
       optional: true,
     },
+    commands: {
+      label: "Commands",
+      description: "List of commands. E.g. `[\"/hi\", \"/hello\"]`",
+      type: "string[]",
+      async options() {
+        const commands = await this.getMyCommands();
+
+        return commands.map(({
+          command, description,
+        }) => ({
+          label: `${command} - ${description}`,
+          value: `/${command}`,
+        }));
+      },
+    },
   },
   methods: {
     _getBaseUrl() {
@@ -290,6 +308,14 @@ export default {
       const config = {
         method: "GET",
         url: `${await this._getBaseUrl()}/deleteWebhook`,
+        headers: await this._getHeaders(),
+      };
+      return axios(this, config);
+    },
+    async getWebhookInfo() {
+      const config = {
+        method: "GET",
+        url: `${await this._getBaseUrl()}/getWebhookInfo`,
         headers: await this._getHeaders(),
       };
       return axios(this, config);
@@ -694,6 +720,9 @@ export default {
     */
     async createChatInviteLink(chatId, opts) {
       return this.sdk().createChatInviteLink(chatId, opts);
+    },
+    async getMyCommands() {
+      return this.sdk().getMyCommands();
     },
   },
 };

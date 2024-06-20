@@ -2,10 +2,10 @@ import common from "../common/base.mjs";
 
 export default {
   ...common,
-  key: "firebase_admin_sdk-update-documents",
-  name: "Update Documents",
-  description: "Updates a Document. [See the docs here](https://googleapis.dev/nodejs/firestore/latest/DocumentReference.html#update)",
-  version: "0.0.1",
+  key: "firebase_admin_sdk-update-document",
+  name: "Update Document",
+  description: "Updates a Document. [See the documentation](https://googleapis.dev/nodejs/firestore/latest/DocumentReference.html#update)",
+  version: "0.0.5",
   type: "action",
   props: {
     ...common.props,
@@ -13,6 +13,9 @@ export default {
       propDefinition: [
         common.props.firebase,
         "collection",
+        (c) => ({
+          region: c.databaseRegion,
+        }),
       ],
     },
     document: {
@@ -21,6 +24,7 @@ export default {
         "document",
         (c) => ({
           collection: c.collection,
+          region: c.databaseRegion,
         }),
       ],
     },
@@ -35,7 +39,8 @@ export default {
   methods: {
     ...common.methods,
     async getResponse() {
-      return this.firebase.updateDocument(this.collection, this.document, this.data);
+      const data = this.parseBooleanValues(this.data);
+      return this.firebase.updateDocument(this.collection, this.document, data);
     },
     emitSummary($) {
       $.export("$summary", `Successfully updated document ${this.document}`);

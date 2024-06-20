@@ -121,21 +121,6 @@ const methods: Pipedream.Methods = {
   },
 };
 
-const flowFunctions: Pipedream.FlowFunctions = {
-  exit: (reason: string) => { console.log(reason); },
-  delay: (ms: number) => { return {
-    resume_url: "https://example.com",
-    cancel_url: "https://example.com",
-  };},
-};
-
-const theDollar: Pipedream.Pipedream = {
-  export: (key: string, value: Pipedream.JSONValue) => { console.log("foo");},
-  send: dollarSend,
-  respond: (response: Pipedream.HTTPResponse) => { console.log("foo"); },
-  flow: flowFunctions,
-};
-
 const googleSheets: Pipedream.App<Pipedream.Methods, Pipedream.AppPropDefinitions> = {
   type: "app",
   app: "google_sheets",
@@ -367,3 +352,17 @@ const actionWrongType: Pipedream.Action<Pipedream.Methods, Pipedream.ActionPropD
   type: "source",
   run() { console.log("foo"); },
 };
+
+Pipedream.defineSource({
+  key: "source",
+  version: "0.0.1",
+  type: "source",
+  dedupe: "unique",
+  run() {
+    this.$emit(
+      {},
+      // @ts-expect-error $ExpectError - Missing id property in metadata object
+      {},
+    );
+  },
+});

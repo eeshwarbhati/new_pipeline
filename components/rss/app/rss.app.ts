@@ -1,10 +1,13 @@
-import axios from "axios";
+import { axios } from "@pipedream/platform";
 import FeedParser from "feedparser";
 import { Item } from "feedparser";
 import hash from "object-hash";
 import { defineApp } from "@pipedream/types";
-import { ConfigurationError } from "@pipedream/platform";
+import {
+  ConfigurationError, DEFAULT_POLLING_SOURCE_TIMER_INTERVAL,
+} from "@pipedream/platform";
 import { ReadStream } from "fs";
+import querystring from "querystring";
 
 export default defineApp({
   type: "app",
@@ -24,38 +27,48 @@ export default defineApp({
       type: "$.interface.timer",
       description: "How often you want to poll the feed for new items",
       default: {
-        intervalSeconds: 60 * 15,
+        intervalSeconds: DEFAULT_POLLING_SOURCE_TIMER_INTERVAL,
       },
     },
   },
   methods: {
     // in theory if alternate setting title and description or aren't unique this won't work
     itemTs(item = {} as (Item | any)): number {
-      if (item.pubdate) {
-        return +new Date(item.pubdate);
-      } else if (item.date_published) {
-        return +new Date(item.date_published);
+      const {
+        pubdate, pubDate, date_published,
+      } = item;
+      const itemPubDate = pubdate ?? pubDate ?? date_published;
+      if (itemPubDate) {
+        return +new Date(itemPubDate);
       }
       return +new Date();
     },
     itemKey(item = {} as (Item | any)): string {
-      if (item.pubdate && item.guid) {
-        return `${item.pubdate}-${item.guid}`;
-      } else if (item.date_published && item.id) {
-        return `${item.date_published}-${item.id}`;
+      const {
+        id, guid, link, title,
+      } = item;
+      const itemId = id ?? guid ?? link ?? title;
+      if (itemId) {
+        // reduce itemId length for deduping
+        return itemId.length > 64
+          ? itemId.slice(-64)
+          : itemId;
       }
       return hash(item);
     },
     async fetchFeed(url: string): Promise<any> {
-      const res = await axios({
+      const params = querystring.parse(url);
+      url = url.split("?")[0];
+      const res = await axios(this, {
         url,
         method: "GET",
         headers: {
-          "user-agent": "@PipedreamHQ/pipedream v0.1",
           "accept": "text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.8, application/json, application/feed+json",
         },
         validateStatus: () => true, // does not throw on any bad status code
         responseType: "stream", // stream is required for feedparser
+        returnFullResponse: true,
+        params,
       });
 
       // Handle status codes as error codes
@@ -80,7 +93,19 @@ export default defineApp({
         feedparser.on("end", resolve);
         feedparser.on("readable", function (this: FeedParser) {
           let item: any = this.read();
+
           while (item) {
+            /*
+            Valid escaped entries in RSS are being stripped out, see issue:
+            https://github.com/danmactough/node-feedparser/issues/243
+            Author suggests using the values below, so I check for them,
+            if they exist, overwrite title.
+            */
+            if (item["atom:title"] && item["atom:title"]["#"]) {
+              item.title = item["atom:title"]["#"];
+            } else if (item["rss:title"] && item["rss:title"]["#"]) {
+              item.title = item["rss:title"]["#"];
+            }
             for (const k in item) {
               if (item[`rss:${k}`]) {
                 delete item[`rss:${k}`];

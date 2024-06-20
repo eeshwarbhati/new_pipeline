@@ -1,4 +1,5 @@
 import discord from "../../discord.app.mjs";
+import constants from "./constants.mjs";
 
 export default {
   props: {
@@ -13,10 +14,34 @@ export default {
         "message",
       ],
     },
+    threadID: {
+      propDefinition: [
+        discord,
+        "threadID",
+      ],
+    },
+    username: {
+      propDefinition: [
+        discord,
+        "username",
+      ],
+    },
+    avatarURL: {
+      propDefinition: [
+        discord,
+        "avatarURL",
+      ],
+    },
     includeSentViaPipedream: {
       propDefinition: [
         discord,
         "includeSentViaPipedream",
+      ],
+    },
+    suppressNotifications: {
+      propDefinition: [
+        discord,
+        "suppressNotifications",
       ],
     },
   },
@@ -41,11 +66,12 @@ export default {
     },
     getSentViaPipedreamText() {
       const workflowId = process.env.PIPEDREAM_WORKFLOW_ID;
-      // The link text is a URL without a protocol for consistency with the "Send via link" text in
-      // Slack messages
-      const linkText = `pipedream.com/@/${workflowId}?o=a&a=discord`;
-      const link = `https://${linkText}`;
-      return `Sent via [${linkText}](<${link}>)`;
+      return `Sent via [Pipedream](<https://pipedream.com/@/${workflowId}?o=a&a=discord>)`;
+    },
+    getMessageFlags(suppressNotifications) {
+      let flags = 0;
+      if (suppressNotifications) flags += constants.SUPPRESS_NOTIFICATIONS;
+      return flags;
     },
   },
 };

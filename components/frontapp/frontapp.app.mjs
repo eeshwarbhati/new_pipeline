@@ -135,7 +135,6 @@ export default {
       type: "string[]",
       label: "Tag IDs",
       description: "List of all the tag IDs.",
-      optional: true,
       async options({ prevContext }) {
         return this.paginateOptions({
           prevContext,
@@ -222,7 +221,6 @@ export default {
       $ = this, ...args
     } = {}) {
       const config = this.getConfig(args);
-      console.log("config", config);
       try {
         return await axios($, config);
       } catch (error) {
@@ -245,6 +243,15 @@ export default {
       return this.makeRequest({
         method: constants.METHOD.POST,
         path: `/channels/${channelId}/messages`,
+        ...args,
+      });
+    },
+    async replyToConversation({
+      conversationId, ...args
+    } = {}) {
+      return this.makeRequest({
+        method: constants.METHOD.POST,
+        path: `/conversations/${conversationId}/messages`,
         ...args,
       });
     },
@@ -284,6 +291,12 @@ export default {
         ...args,
       });
     },
+    async listEvents(args = {}) {
+      return this.makeRequest({
+        path: "/events",
+        ...args,
+      });
+    },
     async listInboxes(args = {}) {
       return this.makeRequest({
         path: "/inboxes",
@@ -305,6 +318,14 @@ export default {
     async listTeammates(args = {}) {
       return this.makeRequest({
         path: "/teammates",
+        ...args,
+      });
+    },
+    async searchConversation({
+      query, ...args
+    }) {
+      return this.makeRequest({
+        path: `/conversations/search/${query}`,
         ...args,
       });
     },
@@ -343,6 +364,39 @@ export default {
           pageToken: nextPageToken || false,
         },
       };
+    },
+    async *paginate({
+      fn, params = {}, maxResults = null, ...args
+    }) {
+      let hasMore = false;
+      let count = 0;
+      let pageToken = null;
+
+      do {
+        const {
+          _results: data,
+          _pagination: { next },
+        } = await fn({
+          ...args,
+          params: {
+            ...params,
+            page_token: pageToken,
+          },
+        });
+        for (const d of data) {
+          yield d;
+
+          if (maxResults && ++count === maxResults) {
+            return count;
+          }
+        }
+
+        if (next) {
+          pageToken = utils.getPageToken(next);
+        }
+        hasMore = next;
+
+      } while (hasMore);
     },
   },
 };

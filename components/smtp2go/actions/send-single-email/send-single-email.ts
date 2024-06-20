@@ -1,13 +1,15 @@
-import common from "../common.mjs";
+import smtp2go from "../../app/smtp2go.app";
+import common from "../common";
 
 export default {
   ...common,
   key: "smtp2go-send-single-email",
   name: "Send Single Email",
   description: "Send a single email with SMTP2GO [(See docs here)](https://apidoc.smtp2go.com/documentation/#/POST%20/email/send)",
-  version: "0.1.0",
+  version: "0.0.2",
   type: "action",
   props: {
+    smtp2go,
     subject: {
       type: "string",
       label: "Subject",
@@ -39,9 +41,9 @@ export default {
       ...this.getActionRequestCommonData(),
       subject: this.subject,
       html_body: this.htmlBody,
-      text_body: this.textBody
+      text_body: this.textBody,
     };
-    if(!data.html_body && !data.text_body){
+    if (!data.html_body && !data.text_body) {
       throw new Error("You must have EITHER a text body or an html body. Neither were provided.");
     }
     const response = await this.smtp2go.sendSingleEmail($, data, this.ignoreFailures);

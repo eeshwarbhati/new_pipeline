@@ -1,17 +1,16 @@
 {
   "name": "@pipedream/cliniko",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "Pipedream Cliniko Components",
-  "main": "cliniko.app.js",
+  "main": "cliniko.app.mjs",
   "keywords": [
     "pipedream",
     "cliniko"
   ],
   "homepage": "https://pipedream.com/apps/cliniko",
   "author": "Adrian Edwards <adrian@ageuphealth.com.au> (https://ageuphealth.com.au/)",
-  "license": "MIT",
   "dependencies": {
-    "@pipedreamhq/platform": "^0.8.1"
+    "@pipedream/platform": "^1.6.2"
   },
   "publishConfig": {
     "access": "public"
